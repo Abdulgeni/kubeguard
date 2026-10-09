@@ -1,0 +1,1 @@
+"""External integrations: NVD API client, cache, CVE matching."""

@@ -1,0 +1,1 @@
+"""Rule plugins. Every non-abstract Rule subclass in this package is auto-discovered."""

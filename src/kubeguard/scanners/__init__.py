@@ -1,0 +1,1 @@
+"""Scanners turn an input (image, manifests) into targets and run rules on them."""
