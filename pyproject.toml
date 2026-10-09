@@ -6,15 +6,29 @@ build-backend = "setuptools.build_meta"
 name = "kubeguard"
 version = "0.1.0"
 description = "Security scanner for Docker images and Kubernetes manifests"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.5",
     "docker>=7.1",
     "requests>=2.31",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "types-requests",
+    "types-PyYAML",
+]
+
+[project.scripts]
+kubeguard = "kubeguard.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -22,3 +36,27 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+filterwarnings = ["ignore::ResourceWarning"]
+
+[tool.coverage.run]
+source = ["kubeguard"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "UP"]
+# UP042: we keep `(str, Enum)` because Typer reads enum members at import time
+# and StrEnum has historically been less well supported in Typer's option parsing.
+ignore = ["E501", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E741", "B017"]
+"src/kubeguard/cli.py" = ["UP007", "UP045"]  # Typer needs Optional[...] spelled out
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = false

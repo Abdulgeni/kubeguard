@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-web
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: secure-web}
+  template:
+    metadata:
+      labels: {app: secure-web}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.25
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            limits: {cpu: 500m, memory: 256Mi}
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db, key: password}

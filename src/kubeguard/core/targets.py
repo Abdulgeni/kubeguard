@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -77,7 +77,7 @@ class DockerImageTarget(BaseModel):
 
     def last_user_instruction(self) -> tuple[LayerInfo, str] | None:
         """The most recent ``USER`` instruction in the image history, if any."""
-        for layer in sorted(self.layers, key=lambda l: l.index, reverse=True):
+        for layer in sorted(self.layers, key=lambda item: item.index, reverse=True):
             found = _USER_INSTRUCTION.match(layer.created_by.strip())
             if found:
                 return layer, found.group("user")
@@ -100,3 +100,121 @@ class PackageVulnerabilityTarget(BaseModel):
     match_method: Literal["cpe", "keyword"]
     cpe: str | None = None
     also_affects: list[str] = Field(default_factory=list)
+
+
+def as_dict(value: Any) -> dict[str, Any]:
+    """``value`` if it is a dict, else ``{}`` (manifests may be malformed)."""
+    return value if isinstance(value, dict) else {}
+
+
+def as_list(value: Any) -> list[Any]:
+    """``value`` if it is a list, else ``[]``."""
+    return value if isinstance(value, list) else []
+
+
+_TEMPLATE = ("spec", "template", "spec")
+_POD_SPEC_PATHS: dict[str, tuple[str, ...]] = {
+    "Pod": ("spec",),
+    "Deployment": _TEMPLATE,
+    "StatefulSet": _TEMPLATE,
+    "DaemonSet": _TEMPLATE,
+    "ReplicaSet": _TEMPLATE,
+    "ReplicationController": _TEMPLATE,
+    "Job": _TEMPLATE,
+    "CronJob": ("spec", "jobTemplate", "spec", "template", "spec"),
+}
+WORKLOAD_KINDS = frozenset(_POD_SPEC_PATHS)
+RBAC_KINDS = frozenset({"Role", "ClusterRole"})
+SUPPORTED_KINDS = WORKLOAD_KINDS | RBAC_KINDS
+
+
+class ContainerRef(BaseModel):
+    """One container (or init/ephemeral container) of a workload."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    kind: Literal["container", "initContainer", "ephemeralContainer"]
+    spec: dict[str, Any]
+
+    @property
+    def security_context(self) -> dict[str, Any]:
+        return as_dict(self.spec.get("securityContext"))
+
+
+class K8sResourceTarget(BaseModel):
+    """One Kubernetes resource parsed from a manifest."""
+
+    model_config = ConfigDict(frozen=True)
+
+    api_version: str = ""
+    kind: str
+    name: str
+    namespace: str | None = None
+    source: str
+    line: int | None = None
+    manifest: dict[str, Any]
+    pod_spec: dict[str, Any] | None = None
+
+    @classmethod
+    def from_manifest(
+        cls, manifest: dict[str, Any], source: str, line: int | None = None
+    ) -> K8sResourceTarget | None:
+        """Build a target, or ``None`` if the kind is not one KubeGuard evaluates."""
+        kind = manifest.get("kind")
+        if not isinstance(kind, str) or kind not in SUPPORTED_KINDS:
+            return None
+        meta = as_dict(manifest.get("metadata"))
+        pod_spec: dict[str, Any] | None = None
+        path = _POD_SPEC_PATHS.get(kind)
+        if path:
+            node: Any = manifest
+            for key in path:
+                node = node.get(key) if isinstance(node, dict) else None
+            pod_spec = node if isinstance(node, dict) else None
+        namespace = meta.get("namespace")
+        return cls(
+            api_version=str(manifest.get("apiVersion") or ""),
+            kind=kind,
+            name=str(meta.get("name") or "<unnamed>"),
+            namespace=str(namespace) if namespace else None,
+            source=source,
+            line=line,
+            manifest=manifest,
+            pod_spec=pod_spec,
+        )
+
+    @property
+    def display_name(self) -> str:
+        return f"{self.kind}/{self.name}"
+
+    @property
+    def location(self) -> str:
+        return f"{self.source}:{self.line}" if self.line else self.source
+
+    @property
+    def containers(self) -> list[ContainerRef]:
+        if self.pod_spec is None:
+            return []
+        refs: list[ContainerRef] = []
+        for field, kind in (
+            ("containers", "container"),
+            ("initContainers", "initContainer"),
+            ("ephemeralContainers", "ephemeralContainer"),
+        ):
+            for item in as_list(self.pod_spec.get(field)):
+                if isinstance(item, dict):
+                    refs.append(
+                        ContainerRef(
+                            name=str(item.get("name") or "<unnamed>"), kind=kind, spec=item  # type: ignore[arg-type]
+                        )
+                    )
+        return refs
+
+    @property
+    def pod_security_context(self) -> dict[str, Any]:
+        return as_dict((self.pod_spec or {}).get("securityContext"))
+
+    @property
+    def volumes(self) -> list[dict[str, Any]]:
+        return [v for v in as_list((self.pod_spec or {}).get("volumes")) if isinstance(v, dict)]

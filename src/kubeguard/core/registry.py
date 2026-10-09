@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 _RULE_ID_PATTERN = re.compile(r"^KG-[A-Z0-9]+-[0-9]{3}$")
 _REQUIRED_TEXT_ATTRS = ("id", "name", "description", "remediation")
+_RESERVED_OPTION_NAMES = frozenset(
+    {"id", "name", "severity", "description", "remediation", "target_type", "severity_overridden"}
+)
 
 
 def _validate_rule_class(cls: type[Rule]) -> None:
@@ -46,17 +49,22 @@ class RuleRegistry:
     Args:
         disabled_rules: Rule IDs to skip.
         severity_overrides: Mapping of rule ID -> replacement severity.
+        rule_options: Mapping of rule ID -> per-rule option overrides.
     """
 
     def __init__(
         self,
         disabled_rules: Iterable[str] = (),
         severity_overrides: Mapping[str, Severity] | None = None,
+        rule_options: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
         self._classes: dict[str, type[Rule]] = {}
         self._instances: dict[str, Rule] = {}
         self._disabled: frozenset[str] = frozenset(disabled_rules)
         self._overrides: dict[str, Severity] = dict(severity_overrides or {})
+        self._options: dict[str, dict[str, Any]] = {
+            rid: dict(opts) for rid, opts in (rule_options or {}).items()
+        }
 
     # ------------------------------------------------------------------ register
     def register(self, rule_cls: type[Rule]) -> type[Rule]:
@@ -140,6 +148,15 @@ class RuleRegistry:
             if override is not None:
                 instance.severity = override
                 instance.severity_overridden = True
+            for key, value in self._options.get(rule_id, {}).items():
+                if (
+                    key.startswith("_")
+                    or key in _RESERVED_OPTION_NAMES
+                    or not hasattr(instance, key)
+                    or callable(getattr(instance, key))
+                ):
+                    raise RuleDefinitionError(f"{rule_id}: unknown rule option {key!r}")
+                setattr(instance, key, value)
             self._instances[rule_id] = instance
         return self._instances[rule_id]
 
@@ -155,8 +172,8 @@ class RuleRegistry:
         return [r for r in self.all_rules() if r.target_type is target_type]
 
     def unknown_config_ids(self) -> list[str]:
-        """Rule IDs mentioned in disabled/override config that don't exist."""
-        configured = set(self._disabled) | set(self._overrides)
+        """Rule IDs mentioned in disabled/override/option config that don't exist."""
+        configured = set(self._disabled) | set(self._overrides) | set(self._options)
         return sorted(configured - set(self._classes))
 
     def __len__(self) -> int:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from kubeguard.core.targets import DockerImageTarget, LayerInfo
+from kubeguard.core.targets import LayerInfo
 
 
 class TestDisplayName:

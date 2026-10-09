@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - name: Type check (advisory until clean)
+        run: mypy src
+        continue-on-error: true
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest --cov=kubeguard --cov-report=term-missing --cov-fail-under=80
+
+  scan-examples:
+    # Dogfood: scan the example manifests and upload SARIF to Code Scanning.
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - run: kubeguard scan k8s examples/k8s --output sarif --output-file kubeguard.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kubeguard.sarif
+
+  publish:
+    # Requires a PyPI "trusted publisher" for this repo and an environment named "pypi".
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

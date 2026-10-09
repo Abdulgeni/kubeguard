@@ -89,7 +89,11 @@ class ApkParser(PackageParser):
         packages: list[PackageInfo] = []
         for path in sorted(p for p in files if self.wants(p)):
             for stanza in _STANZAS.split(_decode(files[path])):
-                fields = {l[0]: l[2:] for l in stanza.splitlines() if len(l) > 2 and l[1] == ":"}
+                fields = {
+                    line[0]: line[2:]
+                    for line in stanza.splitlines()
+                    if len(line) > 2 and line[1] == ":"
+                }
                 name, version = fields.get("P"), fields.get("V")
                 if not name or not version:
                     continue

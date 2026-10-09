@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 import uuid
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
@@ -128,7 +129,12 @@ def make_target() -> Callable[..., DockerImageTarget]:
 
 @pytest.fixture
 def make_raw_image() -> Callable[..., RawImageData]:
-    """Factory for RawImageData shaped like Docker's real output (history newest-first)."""
+    """Factory for RawImageData shaped like Docker's real output (history newest-first).
+
+    Layer timestamps default to *recent* times so KG-DOCKER-003 (outdated base
+    image, 180-day heuristic) does not fire unless a test explicitly supplies
+    old timestamps.
+    """
 
     def _make(
         user: str = "",
@@ -138,6 +144,7 @@ def make_raw_image() -> Callable[..., RawImageData]:
         history: list[dict[str, Any]] | None = None,
         with_config: bool = True,
     ) -> RawImageData:
+        now = int(time.time())
         inspect: dict[str, Any] = {
             "Id": "sha256:abc123",
             "RepoTags": list(tags),
@@ -149,10 +156,11 @@ def make_raw_image() -> Callable[..., RawImageData]:
             # Docker reports null for unset Env/Labels, so we do too.
             inspect["Config"] = {"User": user, "Env": env, "Labels": labels}
         if history is None:
+            # Newest first, matching `docker history` output.
             history = [
-                {"CreatedBy": 'CMD ["nginx"]', "Created": 3, "Size": 0},
-                {"CreatedBy": "/bin/sh -c #(nop)  USER root", "Created": 2, "Size": 0},
-                {"CreatedBy": "ADD file:abc in /", "Created": 1, "Size": 1000},
+                {"CreatedBy": 'CMD ["nginx"]', "Created": now - 60, "Size": 0},
+                {"CreatedBy": "/bin/sh -c #(nop)  USER root", "Created": now - 120, "Size": 0},
+                {"CreatedBy": "ADD file:abc in /", "Created": now - 180, "Size": 1000},
             ]
         return RawImageData(inspect=inspect, history=history)
 

@@ -1,0 +1,28 @@
+# kubeguard scan all --config config.yaml
+# Relative paths resolve against the directory you run kubeguard from.
+
+disabled_rules: []                 # e.g. [KG-K8S-003]
+severity_overrides: {}             # e.g. {KG-DOCKER-003: low}
+rule_options:
+  KG-DOCKER-003:
+    max_age_days: 180
+fail_on: high                      # critical|high|medium|low|info|none
+output: table                      # table|json|sarif
+
+cache:
+  enabled: true
+  ttl_hours: 24
+  # directory: /custom/cache/dir   # default: ~/.cache/kubeguard or %LOCALAPPDATA%\kubeguard
+                                   # (KUBEGUARD_CACHE_DIR also overrides)
+
+docker:
+  images: [alpine:3.19]
+  allow_container_exec: false      # true = run the image's package manager (see README)
+  keyword_fallback: true           # low-confidence NVD keyword search for unmapped packages
+  max_cve_findings: 50
+
+kubernetes:
+  paths: [examples/k8s]
+
+sarif:
+  docker_artifact_uri: Dockerfile  # file that image findings attach to in Code Scanning

@@ -8,6 +8,8 @@ import json
 import tarfile
 from typing import Any
 
+from kubeguard.core.targets import K8sResourceTarget
+
 _INVALID_JSON = object()
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
@@ -70,7 +72,12 @@ def make_cve_item(
 ) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
     if score is not None:
-        key = {"4.0": "cvssMetricV40", "3.1": "cvssMetricV31", "3.0": "cvssMetricV30", "2.0": "cvssMetricV2"}[version]
+        key = {
+            "4.0": "cvssMetricV40",
+            "3.1": "cvssMetricV31",
+            "3.0": "cvssMetricV30",
+            "2.0": "cvssMetricV2",
+        }[version]
         metrics[key] = [{"type": "Primary", "cvssData": {"baseScore": score}}]
     metrics.update(extra_metrics or {})
     return {
@@ -121,5 +128,39 @@ def make_image_archive(
         outer[name] = data
         names.append(name)
     if manifest:
-        outer["manifest.json"] = json.dumps([{"Config": "x", "RepoTags": None, "Layers": names}]).encode()
+        outer["manifest.json"] = json.dumps(
+            [{"Config": "x", "RepoTags": None, "Layers": names}]
+        ).encode()
     return _tar_bytes(outer)
+
+
+def container(name: str = "app", **spec: Any) -> dict[str, Any]:
+    """Build a container spec for a Kubernetes manifest."""
+    return {"name": name, "image": "nginx:1.25", **spec}
+
+
+def workload(
+    kind: str = "Deployment",
+    containers: list[Any] | None = None,
+    pod_spec: dict[str, Any] | None = None,
+    name: str = "web",
+) -> dict[str, Any]:
+    """A manifest of ``kind`` with the pod spec nested where Kubernetes puts it."""
+    spec: dict[str, Any] = {"containers": containers if containers is not None else [container()]}
+    spec.update(pod_spec or {})
+    if kind == "Pod":
+        body: dict[str, Any] = {"spec": spec}
+    elif kind == "CronJob":
+        body = {"spec": {"jobTemplate": {"spec": {"template": {"spec": spec}}}}}
+    else:
+        body = {"spec": {"template": {"spec": spec}}}
+    return {"apiVersion": "v1", "kind": kind, "metadata": {"name": name}, **body}
+
+
+def k8s_target(
+    manifest: dict[str, Any], source: str = "app.yaml", line: int | None = 3
+) -> K8sResourceTarget:
+    """Build a K8sResourceTarget from a manifest, asserting it is a supported kind."""
+    target = K8sResourceTarget.from_manifest(manifest, source, line)
+    assert target is not None
+    return target
