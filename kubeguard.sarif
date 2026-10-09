@@ -1,0 +1,384 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "KubeGuard",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "KG-K8S-004",
+              "name": "Privileged container",
+              "shortDescription": {
+                "text": "Privileged container"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "9.5"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "KG-K8S-007",
+              "name": "RBAC wildcard permissions",
+              "shortDescription": {
+                "text": "RBAC wildcard permissions"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "8.0"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "KG-K8S-005",
+              "name": "hostPath volume mounted",
+              "shortDescription": {
+                "text": "hostPath volume mounted"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "8.0"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "KG-K8S-006",
+              "name": "Secret stored directly in env var",
+              "shortDescription": {
+                "text": "Secret stored directly in env var"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "8.0"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "KG-K8S-001",
+              "name": "Container may run as root",
+              "shortDescription": {
+                "text": "Container may run as root"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "5.5"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "KG-K8S-002",
+              "name": "Privilege escalation allowed",
+              "shortDescription": {
+                "text": "Privilege escalation allowed"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "5.5"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "KG-K8S-003",
+              "name": "Resource limits missing",
+              "shortDescription": {
+                "text": "Resource limits missing"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "k8s"
+                ],
+                "security-severity": "3.0"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "KG-K8S-004",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "The container runs with securityContext.privileged: true, giving it nearly all host capabilities and device access. Affected containers: web.\n\nRemediation: Remove securityContext.privileged. Grant only the specific capabilities required via securityContext.capabilities.add."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "0f6d04de1e76281021693e6fcb2c673c"
+          },
+          "properties": {
+            "severity": "CRITICAL",
+            "resource": "Deployment/insecure-web",
+            "remediation": "Remove securityContext.privileged. Grant only the specific capabilities required via securityContext.capabilities.add.",
+            "metadata": {
+              "containers": [
+                "web"
+              ],
+              "namespace": "demo"
+            }
+          }
+        },
+        {
+          "ruleId": "KG-K8S-007",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "A Role or ClusterRole grants '*' for verbs or resources, which violates least privilege and can amount to cluster-admin. Offending rules: #0 (wildcard verbs and resources).\n\nRemediation: List only the specific verbs and resources the subject needs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 29
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "5cb9dcb468e50dc1f279d166bd1acce1"
+          },
+          "properties": {
+            "severity": "HIGH",
+            "resource": "ClusterRole/too-powerful",
+            "remediation": "List only the specific verbs and resources the subject needs.",
+            "metadata": {
+              "rule_indexes": [
+                0
+              ],
+              "namespace": null
+            }
+          }
+        },
+        {
+          "ruleId": "KG-K8S-005",
+          "ruleIndex": 2,
+          "level": "error",
+          "message": {
+            "text": "The pod mounts a hostPath volume, exposing part of the node's filesystem to the workload and enabling container escape or node tampering. Volumes: host-root (/).\n\nRemediation: Use emptyDir, a PersistentVolumeClaim, or a ConfigMap/Secret volume instead. If a hostPath is unavoidable, make it read-only and as narrow as possible."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "d78a9bd03614ff604bab5fcfad0a7497"
+          },
+          "properties": {
+            "severity": "HIGH",
+            "resource": "Deployment/insecure-web",
+            "remediation": "Use emptyDir, a PersistentVolumeClaim, or a ConfigMap/Secret volume instead. If a hostPath is unavoidable, make it read-only and as narrow as possible.",
+            "metadata": {
+              "volumes": [
+                {
+                  "name": "host-root",
+                  "path": "/"
+                }
+              ],
+              "namespace": "demo"
+            }
+          }
+        },
+        {
+          "ruleId": "KG-K8S-006",
+          "ruleIndex": 3,
+          "level": "error",
+          "message": {
+            "text": "A container sets a credential-like environment variable (API key, password, secret, token) to a literal value in the manifest, where anyone with read access or the Git history can see it. Variables: web:DB_PASSWORD.\n\nRemediation: Store the value in a Kubernetes Secret (or an external secrets manager) and reference it with env[].valueFrom.secretKeyRef or mount it as a file."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "52b4d49242e62da5776f11e248881c66"
+          },
+          "properties": {
+            "severity": "HIGH",
+            "resource": "Deployment/insecure-web",
+            "remediation": "Store the value in a Kubernetes Secret (or an external secrets manager) and reference it with env[].valueFrom.secretKeyRef or mount it as a file.",
+            "metadata": {
+              "variables": [
+                "web:DB_PASSWORD"
+              ],
+              "namespace": "demo"
+            }
+          }
+        },
+        {
+          "ruleId": "KG-K8S-001",
+          "ruleIndex": 4,
+          "level": "warning",
+          "message": {
+            "text": "securityContext.runAsNonRoot is not true at container or pod level, so the container is allowed to run as root. Affected containers: web.\n\nRemediation: Set securityContext.runAsNonRoot: true on the pod or on each container, and make sure the image defines a non-root user."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "c6e56aa6154fa620fd357822942ec4b4"
+          },
+          "properties": {
+            "severity": "MEDIUM",
+            "resource": "Deployment/insecure-web",
+            "remediation": "Set securityContext.runAsNonRoot: true on the pod or on each container, and make sure the image defines a non-root user.",
+            "metadata": {
+              "containers": [
+                "web"
+              ],
+              "namespace": "demo"
+            }
+          }
+        },
+        {
+          "ruleId": "KG-K8S-002",
+          "ruleIndex": 5,
+          "level": "warning",
+          "message": {
+            "text": "securityContext.allowPrivilegeEscalation is not explicitly false, so processes can gain more privileges than their parent (for example through setuid binaries). Affected containers: web.\n\nRemediation: Set securityContext.allowPrivilegeEscalation: false on every container."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "df0a068b75c9c2a339c009c507cd32e9"
+          },
+          "properties": {
+            "severity": "MEDIUM",
+            "resource": "Deployment/insecure-web",
+            "remediation": "Set securityContext.allowPrivilegeEscalation: false on every container.",
+            "metadata": {
+              "containers": [
+                "web"
+              ],
+              "namespace": "demo"
+            }
+          }
+        },
+        {
+          "ruleId": "KG-K8S-003",
+          "ruleIndex": 6,
+          "level": "note",
+          "message": {
+            "text": "resources.limits does not set both cpu and memory. A single container can then starve other workloads on the node. Affected containers: web (missing cpu, memory).\n\nRemediation: Set resources.limits.cpu and resources.limits.memory on every container."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/k8s/insecure-deployment.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "kubeguard/v1": "ca0ac988f992fdafce6343f5c70790a9"
+          },
+          "properties": {
+            "severity": "LOW",
+            "resource": "Deployment/insecure-web",
+            "remediation": "Set resources.limits.cpu and resources.limits.memory on every container.",
+            "metadata": {
+              "containers": [
+                "web (missing cpu, memory)"
+              ],
+              "namespace": "demo"
+            }
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": []
+        }
+      ]
+    }
+  ]
+}
